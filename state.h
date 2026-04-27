@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #define MAX_PLAYERS 8
 #define TICKS_PER_SECOND 20
@@ -63,6 +64,8 @@ typedef struct {
   uint8_t bomb_radius;
   uint16_t bomb_timer_ticks;
   uint16_t speed;
+
+  bool is_connected;
 } player_t;
 
 typedef struct {
@@ -86,5 +89,30 @@ typedef struct {
   uint8_t map[MAX_GRID_SIZE * MAX_GRID_SIZE]; // The grid data
   player_t players[MAX_PLAYERS];              // Max 8 players (page 11)
 } GameState;
+
+#ifdef STATE_IMPL
+void init_game_state(GameState *game) {
+  game->status = GAME_LOBBY;
+  game->map_width = 0;
+  game->map_height = 0;
+  memset(game->map, 0, sizeof(game->map));
+
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    player_t *player = &game->players[i];
+
+    player->alive = false;
+    player->col = 0;
+    player->row = 0;
+    player->id = (uint8_t)i;
+    player->is_connected = false;
+    memset(player->name, '\0', sizeof(player->name));
+    player->bomb_count = 1;        // spec: starts with 1 bomb
+    player->bomb_radius = 1;       // spec: radius 1
+    player->bomb_timer_ticks = 60; // spec: 3 seconds = 60 ticks
+    player->ready = false;
+    player->speed = 4; // spec: 4 cells/second
+  }
+}
+#endif
 
 #endif
