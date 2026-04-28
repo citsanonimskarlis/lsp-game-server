@@ -8,7 +8,9 @@
 
 #define MAX_PLAYERS 8
 #define TICKS_PER_SECOND 20
-#define MAX_NAME_LEN 15
+#define MAX_PLAYER_NAME 30
+
+#define MAX_SERVER_NAME 20
 
 #define MAX_GRID_SIZE 255
 
@@ -36,6 +38,7 @@ typedef enum {
   MSG_PONG = 4,
   MSG_LEAVE = 5,
   MSG_ERROR = 6,
+  MSG_MAP = 7,
   MSG_SET_READY = 10,
   MSG_SET_STATUS = 20,
   MSG_WINNER = 23,
@@ -55,7 +58,7 @@ typedef enum {
 
 typedef struct {
   uint8_t id;
-  char name[MAX_NAME_LEN + 1];
+  char name[MAX_PLAYER_NAME];
   uint16_t row;
   uint16_t col;
   bool alive;
@@ -88,7 +91,23 @@ typedef struct {
   uint8_t map_height;
   uint8_t map[MAX_GRID_SIZE * MAX_GRID_SIZE]; // The grid data
   player_t players[MAX_PLAYERS];              // Max 8 players (page 11)
+  char server_name[MAX_SERVER_NAME];
+
+  uint8_t my_player_id;
+
+  bool is_initialized; // after we recieve welcome packet it is set to
+                       // true when we disconnect to false
+  //
+  uint8_t winner_id;
+
+  uint8_t spectate_target; // player ID to follow camera; 255 = follow self
+
+  // Per-player statistics
+  uint16_t bonuses_collected[MAX_PLAYERS];
+
 } GameState;
+
+void init_game_state(GameState *gama);
 
 #ifdef STATE_IMPL
 void init_game_state(GameState *game) {
@@ -106,12 +125,18 @@ void init_game_state(GameState *game) {
     player->id = (uint8_t)i;
     player->is_connected = false;
     memset(player->name, '\0', sizeof(player->name));
-    player->bomb_count = 1;        // spec: starts with 1 bomb
-    player->bomb_radius = 1;       // spec: radius 1
-    player->bomb_timer_ticks = 60; // spec: 3 seconds = 60 ticks
+    player->bomb_count = 1;         // spec: starts with 1 bomb
+    player->bomb_radius = 1;        // spec: radius 1
+    player->bomb_timer_ticks = 60;  // spec: 3 seconds = 60 ticks
     player->ready = false;
-    player->speed = 4; // spec: 4 cells/second
+    player->speed = 4;              // spec: 4 cells/second
   }
+  memset(game->server_name, '\0', sizeof(game->server_name));
+  game->my_player_id = 255;
+  game->is_initialized = false;
+  game->winner_id = 255;
+  game->spectate_target = 255;
+  memset(game->bonuses_collected, 0, sizeof(game->bonuses_collected));
 }
 #endif
 
