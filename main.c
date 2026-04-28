@@ -23,28 +23,29 @@
 
 #define SERVER_ID        "BombermanSrv/1.0"
 #define MAX_BOMBS        64
-#define TICK_MS          (1000 / TICKS_PER_SECOND)   /* 50 ms */
+#define TICK_MS          (1000 / TICKS_PER_SECOND)   
 #define NO_ROUND_LIMIT   0                            /* 0 = bez laika ierobežojuma */
 
-/* ── Globālie mainīgie ─────────────────────────────────────── */
+/*Globālie mainīgie*/
 static int       client_fds[MAX_PLAYERS];
 static GameState game;
 static bomb_t    bombs[MAX_BOMBS];
 static int       bomb_count = 0;
 
-/* Spēlētāju statistika (atiestatās katram raundam) */
+static uint32_t global_ticks = 0;
+
 static uint16_t stat_kills[MAX_PLAYERS];
 static uint16_t stat_blocks[MAX_PLAYERS];
 
-/* Raunda taimeris */
+/* Raunda taimeris*/
 static uint32_t  round_max_ticks = NO_ROUND_LIMIT;
 
-/* ── Kartes konfigurācija ──────────────────────────────────── */
+/*Kartes konfigurācija */
 static uint16_t cfg_speed      = 4;
 static uint8_t  cfg_radius     = 1;
 static uint16_t cfg_bomb_timer = 60;
 static uint16_t cfg_dmg_time   = 5;
-static uint16_t cfg_round_ticks = NO_ROUND_LIMIT;  /* no kartes faila */
+static uint16_t cfg_round_ticks = NO_ROUND_LIMIT;  /*no kartes faila*/
 
 static uint16_t spawn_row[MAX_PLAYERS];
 static uint16_t spawn_col[MAX_PLAYERS];
@@ -56,17 +57,13 @@ static void handle_disconnect(int fd);
 
 static int safe_send(int fd, const uint8_t *buf, int len);
 
-/* ── Laika palīgs ──────────────────────────────────────────── */
+/* Laika palīgs */
 static long now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
 }
-
-/* ══════════════════════════════════════════════════════════════
-   PALĪGFUNKCIJAS
-   ══════════════════════════════════════════════════════════════ */
-
+/*PALĪGFUNKCIJAS*/
 
 static void send_to(int fd, const uint8_t *buf, int len) {
     safe_send(fd, buf, len);
@@ -91,9 +88,7 @@ static int count_connected(void) {
     return n;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   ZIŅU SŪTĪŠANA — apvienotas palīgfunkcijas
-   ══════════════════════════════════════════════════════════════ */
+/*ziņu sūtīšana*/
 static void broadcast(const uint8_t *buf, int len) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (client_fds[i] >= 0) {
@@ -103,15 +98,14 @@ static void broadcast(const uint8_t *buf, int len) {
         }
     }
 }
-/* 4-baitu broadcast: [type, 255, 254, data] */
+/* 4-baitu broadcast*/
 static void broadcast_simple(uint8_t type, uint8_t data) {
     uint8_t buf[4] = {type, 255, 254, data};
     broadcast(buf, 4);
 }
 
-/* 6-baitu broadcast ar šūnas koordināti: [type, 255, 254, data, cell_hi, cell_lo] */
-static void broadcast_cell_event(uint8_t type, uint8_t data,
-                                  uint16_t row, uint16_t col) {
+/* 6-baitu broadcast*/
+static void broadcast_cell_event(uint8_t type, uint8_t data, uint16_t row, uint16_t col) {
     uint8_t buf[6];
     buf[0] = type;
     buf[1] = 255;
@@ -122,7 +116,7 @@ static void broadcast_cell_event(uint8_t type, uint8_t data,
     broadcast(buf, 6);
 }
 
-/* 5-baitu broadcast blokam: [type, 255, 254, cell_hi, cell_lo] */
+/* 5-baitu broadcast*/
 static void broadcast_block_destroyed(uint16_t row, uint16_t col) {
     uint8_t buf[5];
     buf[0] = MSG_BLOCK_DESTROYED;
@@ -133,7 +127,7 @@ static void broadcast_block_destroyed(uint16_t row, uint16_t col) {
     broadcast(buf, 5);
 }
 
-/* ERROR ziņa uz vienu klientu */
+/*ERROR*/
 static void send_error(int fd, const char *msg) {
     uint16_t msglen = (uint16_t)strlen(msg);
     uint8_t buf[3 + 2 + 256];
@@ -146,7 +140,7 @@ static void send_error(int fd, const char *msg) {
     send_to(fd, buf, 5 + msglen);
 }
 
-/* Kartes sūtīšana */
+/*Kartes sūtīšana*/
 static void send_map(int fd) {
     int map_size = game.map_height * game.map_width;
     uint8_t *buf = malloc(5 + (size_t)map_size);
@@ -186,9 +180,7 @@ static void send_welcome(int fd, int new_id) {
     send_to(fd, buf, 25 + count * 32);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   KARTES IELĀDE
-   ══════════════════════════════════════════════════════════════ */
+/*Kartes ielāde*/
 
 static bool load_map(const char *filename) {
     FILE *f = fopen(filename, "r");
@@ -203,16 +195,15 @@ static bool load_map(const char *filename) {
         fprintf(stderr, "Nekorekts kartes fails\n");
         fclose(f); return false;
     }
-    /* Neobligāts 7. lauks — raunda maksimālais ilgums ticks */
     if (fscanf(f, " %d", &round_time) == 1 && round_time > 0)
         cfg_round_ticks = (uint16_t)round_time;
     else
         cfg_round_ticks = NO_ROUND_LIMIT;
 
-    cfg_speed      = (uint16_t)speed;
-    cfg_radius     = (uint8_t)radius;
+    cfg_speed = (uint16_t)speed;
+    cfg_radius = (uint8_t)radius;
     cfg_bomb_timer = (uint16_t)bomb_time;
-    cfg_dmg_time   = (uint16_t)dmg_time;
+    cfg_dmg_time = (uint16_t)dmg_time;
 
     game.map_height = (uint8_t)h;
     game.map_width  = (uint8_t)w;
@@ -236,14 +227,10 @@ static bool load_map(const char *filename) {
         }
     }
     fclose(f);
-    printf("Karte ielādēta: %dx%d, ātrums=%d, rādiuss=%d, taimeris=%d ticks, raunds=%d ticks\n",
-           h, w, speed, radius, bomb_time, cfg_round_ticks);
+    printf("Karte ielādēta: %dx%d, ātrums=%d, rādiuss=%d, taimeris=%d ticks, raunds=%d ticks\n", h, w, speed, radius, bomb_time, cfg_round_ticks);
     return true;
 }
-
-/* ══════════════════════════════════════════════════════════════
-   SPĒLES SĀKŠANA / BEIGŠANA
-   ══════════════════════════════════════════════════════════════ */
+/*Sākt/Beigt spēli*/
 
 static void check_win_condition(void);
 
@@ -263,11 +250,11 @@ static void start_game(void) {
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (client_fds[i] >= 0) {
-            game.players[i].alive            = true;
-            game.players[i].speed            = cfg_speed;
-            game.players[i].bomb_radius      = cfg_radius;
+            game.players[i].alive = true;
+            game.players[i].speed = cfg_speed;
+            game.players[i].bomb_radius = cfg_radius;
             game.players[i].bomb_timer_ticks = cfg_bomb_timer;
-            game.players[i].bomb_count       = 1;
+            game.players[i].bomb_count = 1;
             if (spawn_found[i]) {
                 game.players[i].row = spawn_row[i];
                 game.players[i].col = spawn_col[i];
@@ -283,9 +270,7 @@ static void start_game(void) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (client_fds[i] >= 0) {
             send_map(client_fds[i]);
-            broadcast_cell_event(MSG_MOVED, (uint8_t)i,
-                                 game.players[i].row,
-                                 game.players[i].col);
+            broadcast_cell_event(MSG_MOVED, (uint8_t)i, game.players[i].row, game.players[i].col);
         }
     }
     printf("Spēle sākta! Spēlētāji: %d\n", count_connected());
@@ -293,17 +278,11 @@ static void start_game(void) {
 
 static void end_game(int winner_id) {
     game.status = GAME_END;
-
-    /* Statistikas izvadīšana serverī */
     printf("=== RAUNDA STATISTIKA ===\n");
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (client_fds[i] >= 0)
-            printf("  [%d] %s  kills=%u  blocks=%u  bonuses=%u\n",
-                   i, game.players[i].name,
-                   stat_kills[i], stat_blocks[i],
-                   game.bonuses_collected[i]);
+            printf("  [%d] %s  kills=%u  blocks=%u  bonuses=%u\n",i, game.players[i].name,stat_kills[i], stat_blocks[i], game.bonuses_collected[i]);
     }
-
     if (winner_id >= 0) {
         game.winner_id = (uint8_t)winner_id;
         printf("Uzvarētājs: spēlētājs %d (%s)\n",
@@ -326,28 +305,22 @@ static void check_win_condition(void) {
 
     int alive_count = 0;
     int winner_id = -1;
-    int connected_count = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (client_fds[i] >= 0) {
-            connected_count++;
-            if (game.players[i].alive) {
-                alive_count++;
-                winner_id = i;
-            }
+        if (client_fds[i] >= 0 && game.players[i].alive) {
+            alive_count++;
+            winner_id = i;
         }
     }
+    
     if (alive_count == 0) {
-        end_game(-1); // Neizšķirts, ja visi beigti
-    } else if (alive_count == 1 && connected_count > 1) {
-        end_game(winner_id); // Viens uzvarētājs
+        end_game(-1); // Neizšķirts, ja visi gājuši bojā
+    } else if (alive_count == 1) {
+        end_game(winner_id);
     }
 }
 
-
-/* ══════════════════════════════════════════════════════════════
-   KUSTĪBA
-   ══════════════════════════════════════════════════════════════ */
+/*Moovment*/
 
 static bool cell_passable(int r, int c, int moving_player_id) {
     if (r < 0 || r >= game.map_height || c < 0 || c >= game.map_width)
@@ -368,9 +341,12 @@ static bool cell_passable(int r, int c, int moving_player_id) {
 static void handle_move(int fd, uint8_t dir_byte) {
     int id = find_player_by_fd(fd);
     if (id < 0) return;
-    if (!game.players[id].alive) {
-        send_error(fd, "Player is dead");
-        return;
+    if (!game.players[id].alive) return;
+
+    // --- ĀTRUMA KONTROLE ---
+    if (global_ticks < game.players[id].next_move_tick) {
+        // Spēlētājs sūta paketes pārāk ātri - ignorējam
+        return; 
     }
 
     int r = game.players[id].row;
@@ -381,28 +357,28 @@ static void handle_move(int fd, uint8_t dir_byte) {
         case 'D': r++; break;
         case 'L': c--; break;
         case 'R': c++; break;
-        default:
-            send_error(fd, "Invalid direction");
-            return;
+        default: return;
     }
 
-    if (!cell_passable(r, c, id)) {
-        send_error(fd, "Cell not passable");
-        return;
-    }
+    if (!cell_passable(r, c, id)) return;
 
     game.players[id].row = (uint16_t)r;
     game.players[id].col = (uint16_t)c;
     broadcast_cell_event(MSG_MOVED, (uint8_t)id, (uint16_t)r, (uint16_t)c);
 
-    /* Bonusa savākšana */
+    
+    uint32_t delay = TICKS_PER_SECOND / game.players[id].speed;
+    if (delay == 0) delay = 1; 
+    game.players[id].next_move_tick = global_ticks + delay;
+
     int idx = r * game.map_width + c;
     uint8_t tile = game.map[idx];
     if (tile == 'A' || tile == 'R' || tile == 'T' || tile == 'N') {
-        broadcast_cell_event(MSG_BONUS_RETRIEVED, (uint8_t)id,
-                             (uint16_t)r, (uint16_t)c);
+        broadcast_cell_event(MSG_BONUS_RETRIEVED, (uint8_t)id, (uint16_t)r, (uint16_t)c);
         game.bonuses_collected[id]++;
-        if      (tile == 'A') game.players[id].speed++;
+        if (tile == 'A') {
+            game.players[id].speed++;
+        }
         else if (tile == 'R') game.players[id].bomb_radius++;
         else if (tile == 'T') game.players[id].bomb_timer_ticks += 10;
         else if (tile == 'N') game.players[id].bomb_count++;
@@ -410,9 +386,7 @@ static void handle_move(int fd, uint8_t dir_byte) {
     }
 }
 
-/* ══════════════════════════════════════════════════════════════
-   BUMBAS UN SPRĀDZIENI
-   ══════════════════════════════════════════════════════════════ */
+/* Bombas un spridzekļi*/
 
 static void detonate_bomb(int bi) {
     bomb_t *b = &bombs[bi];
@@ -421,17 +395,17 @@ static void detonate_bomb(int bi) {
     int radius = b->radius;
     uint8_t owner = b->owner_id;
 
-    /* 1. Noņem bumbu no kartes un sāk sprādzienu */
+    /* 1.Noņem bumbu no kartes un sāk sprādzienu*/
     game.map[cr * game.map_width + cc] = '.';
     broadcast_cell_event(MSG_EXPLOSION_START, (uint8_t)radius, (uint16_t)cr, (uint16_t)cc);
 
     int dr[] = {-1, 1, 0, 0};
     int dc[] = {0, 0, -1, 1};
 
-    /* 2. Atzīmē sprādziena centru */
+    /* 2.Atzīmē sprādziena centru*/
     game.map[cr * game.map_width + cc] = '*';
 
-    /* 3. Izskaitļo sprādziena starus četros virzienos */
+    /* 3.Izskaitļo sprādziena starus četros virzienos*/
     for (int dir = 0; dir < 4; dir++) {
         for (int step = 1; step <= radius; step++) {
             int r = cr + dr[dir] * step;
@@ -807,8 +781,18 @@ static void handle_disconnect(int fd) {
         uint8_t buf[3] = {MSG_LEAVE, (uint8_t)id, 254};
         broadcast(buf, 3);
 
-        if (game.status == GAME_RUNNING)
+        if (game.status == GAME_RUNNING) {
             check_win_condition();
+        }
+
+        // Labots: Ja serverī vairs nav neviena spēlētāja, atgriežam to lobijā
+        if (count_connected() == 0) {
+            printf("Visi spēlētāji atvienojušies. Serveris atgriežas lobija režīmā.\n");
+            game.status = GAME_LOBBY;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                game.players[i].ready = false;
+            }
+        }
 
         close(fd);
     }
@@ -922,6 +906,7 @@ int main(int argc, char *argv[]) {
             if (game.status == GAME_RUNNING)
                 tick_bombs();
             next_tick += TICK_MS;
+            global_ticks++;
             if (now_ms() > next_tick)
                 next_tick = now_ms() + TICK_MS;
         }
