@@ -69,6 +69,7 @@ typedef struct {
   uint16_t speed;
 
   bool is_connected;
+  uint32_t next_move_tick; //laiks, kad drīkstēs veikt nākamo kustību
 } player_t;
 
 typedef struct {
@@ -118,7 +119,7 @@ void init_game_state(GameState *game) {
 
   for (int i = 0; i < MAX_PLAYERS; i++) {
     player_t *player = &game->players[i];
-
+    player->next_move_tick = 0;
     player->alive = false;
     player->col = 0;
     player->row = 0;
