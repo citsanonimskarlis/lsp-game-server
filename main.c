@@ -122,6 +122,17 @@ static void broadcast_cell_event(uint8_t type, uint8_t data,
     broadcast(buf, 6);
 }
 
+/* 5-baitu broadcast blokam: [type, 255, 254, cell_hi, cell_lo] */
+static void broadcast_block_destroyed(uint16_t row, uint16_t col) {
+    uint8_t buf[5];
+    buf[0] = MSG_BLOCK_DESTROYED;
+    buf[1] = 255;
+    buf[2] = 254;
+    uint16_t cell = htons(make_cell_index(row, col, game.map_width));
+    memcpy(&buf[3], &cell, 2);
+    broadcast(buf, 5);
+}
+
 /* ERROR ziņa uz vienu klientu */
 static void send_error(int fd, const char *msg) {
     uint16_t msglen = (uint16_t)strlen(msg);
@@ -551,7 +562,7 @@ static void tick_bombs(void) {
                         } else if (tile == 'X') {
                             // Šeit ir mīkstais bloks, kas tikko izjuka
                             game.map[idx] = '.';
-                            broadcast_cell_event(MSG_BLOCK_DESTROYED, 0, (uint16_t)r, (uint16_t)c);
+                            broadcast_block_destroyed((uint16_t)r, (uint16_t)c);
 
                             // Bonusa loģika (droša)
                             if (rand() % 3 == 0) {
