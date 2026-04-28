@@ -788,18 +788,19 @@ static void handle_disconnect(int fd) {
         printf("Spēlētājs %d (%s) atvienojās.\n",
                id, game.players[id].name);
 
-        uint8_t buf[3] = {MSG_LEAVE, (uint8_t)id, 254};
-        broadcast(buf, 3);
-
+        client_fds[id]                = -1;
         game.players[id].is_connected = false;
         game.players[id].alive        = false;
         game.players[id].ready        = false;
-        client_fds[id]                = -1;
+
+        uint8_t buf[3] = {MSG_LEAVE, (uint8_t)id, 254};
+        broadcast(buf, 3);
 
         if (game.status == GAME_RUNNING)
             check_win_condition();
+
+        close(fd);
     }
-    close(fd);
 }
 
 
